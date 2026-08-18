@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Robot Voice Display</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #0984e3; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        h1 { font-size: 32px; text-align: center; }
+        .face { font-size: 100px; }
+    </style>
+</head>
+<body>
+
+<div class="face" id="face">🤖</div>
+<h1 id="displayText">Robot Ready</h1>
+
+<script>
+    const databaseURL = "https://test-5b6ed-default-rtdb.firebaseio.com/";
+    let lastEvent = "";
+
+    function speak(text) {
+        window.speechSynthesis.cancel(); // Clear queue
+        const msg = new SpeechSynthesisUtterance(text);
+        msg.rate = 0.9;
+        msg.pitch = 1.0;
+        window.speechSynthesis.speak(msg);
+    }
+
+    function monitorEvents() {
+        fetch(`${databaseURL}/ROBOT_EVENT.json`)
+        .then(res => res.json())
+        .then(event => {
+            if (event && event !== lastEvent) {
+                lastEvent = event;
+                const displayText = document.getElementById('displayText');
+                const face = document.getElementById('face');
+
+                if (event === "OBSTACLE_DETECTED") {
+                    displayText.innerText = "Obstacle detected! Please clear the path.";
+                    face.innerText = "⚠️";
+                    speak("Excuse me, please clear the path so I can pass.");
+                } 
+                else if (event === "ARRIVED_AT_TABLE") {
+                    displayText.innerText = "Please enjoy your food!";
+                    face.innerText = "😋";
+                    speak("Hello! Your food is here. Please take your food tray from the robot.");
+                } 
+                else if (event === "ORDER_TAKEN") {
+                    displayText.innerText = "Thank you! Enjoy your meal.";
+                    face.innerText = "😄";
+                    speak("Thank you very much. Enjoy your meal!");
+                } 
+                else if (event === "ARRIVED_KITCHEN") {
+                    displayText.innerText = "Robot Ready";
+                    face.innerText = "🤖";
+                }
+            }
+        });
+    }
+
+    setInterval(monitorEvents, 1000);
+</script>
+
+</body>
+</html>

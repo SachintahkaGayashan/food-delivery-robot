@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Kitchen Crew Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #121212; color: white; text-align: center; padding: 20px; }
+        .card { background: #1e1e1e; padding: 20px; border-radius: 12px; display: inline-block; width: 350px; margin: 10px; }
+        button { background: #00b894; color: white; padding: 12px 20px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin: 5px; width: 80%; }
+        button:hover { background: #008f72; }
+        #alertBox { background: #ff7675; color: white; padding: 15px; border-radius: 8px; display: none; margin-top: 15px; font-weight: bold; }
+        #statusBox { font-size: 18px; color: #74b9ff; margin-top: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Kitchen Control Panel</h2>
+    <p>Select Table to Dispatch Robot:</p>
+    <button onclick="sendOrder('Table 1')">Send to Table 1</button>
+    <button onclick="sendOrder('Table 2')">Send to Table 2</button>
+    <button onclick="sendOrder('Table 3')">Send to Table 3</button>
+
+    <h3>Robot Status:</h3>
+    <div id="statusBox">Loading...</div>
+    <div id="alertBox"></div>
+</div>
+
+<script>
+    const databaseURL = "https://test-5b6ed-default-rtdb.firebaseio.com/";
+
+    function sendOrder(table) {
+        fetch(`${databaseURL}/COMMAND.json`, {
+            method: 'PUT',
+            body: JSON.stringify(`START:${table}`)
+        });
+        document.getElementById('alertBox').style.display = "none";
+    }
+
+    function checkRobotData() {
+        // Fetch Status
+        fetch(`${databaseURL}/ROBOT_STATUS.json`)
+        .then(res => res.json())
+        .then(status => {
+            if (status) document.getElementById('statusBox').innerText = status;
+        });
+
+        // Fetch Events / Notifications
+        fetch(`${databaseURL}/ROBOT_EVENT.json`)
+        .then(res => res.json())
+        .then(event => {
+            const alertBox = document.getElementById('alertBox');
+            if (event === "OBSTACLE_TIMEOUT") {
+                alertBox.innerText = "WARNING: Obstacle blocked robot path for > 30s!";
+                alertBox.style.background = "#d63031";
+                alertBox.style.display = "block";
+            } else if (event === "ORDER_TAKEN") {
+                alertBox.innerText = "SUCCESS: Food Tray picked up by customer!";
+                alertBox.style.background = "#00b894";
+                alertBox.style.display = "block";
+            }
+        });
+    }
+
+    setInterval(checkRobotData, 1000);
+</script>
+
+</body>
+</html>
