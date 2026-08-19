@@ -1,65 +1,422 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
     <title>Robot Voice Display</title>
+
+
     <style>
-        body { font-family: Arial, sans-serif; background: #0984e3; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        h1 { font-size: 32px; text-align: center; }
-        .face { font-size: 100px; }
+
+        body {
+
+            font-family: Arial, sans-serif;
+
+            background: #0984e3;
+
+            color: white;
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+
+            justify-content: center;
+
+            height: 100vh;
+
+            margin: 0;
+
+            transition: background 0.3s;
+
+        }
+
+
+        .face {
+
+            font-size: 110px;
+
+            margin-bottom: 20px;
+
+        }
+
+
+        h1 {
+
+            font-size: 34px;
+
+            text-align: center;
+
+            max-width: 850px;
+
+            padding: 20px;
+
+        }
+
+
+        #status {
+
+            font-size: 18px;
+
+            opacity: 0.8;
+
+        }
+
     </style>
+
 </head>
+
+
 <body>
 
-<div class="face" id="face">🤖</div>
-<h1 id="displayText">Robot Ready</h1>
+
+<div class="face" id="face">
+    🤖
+</div>
+
+
+<h1 id="displayText">
+    Robot Ready
+</h1>
+
+
+<div id="status">
+    Waiting for instructions...
+</div>
+
 
 <script>
-    const databaseURL = "https://test-5b6ed-default-rtdb.firebaseio.com/";
-    let lastEvent = "";
 
-    function speak(text) {
-        window.speechSynthesis.cancel(); // Clear queue
-        const msg = new SpeechSynthesisUtterance(text);
-        msg.rate = 0.9;
-        msg.pitch = 1.0;
-        window.speechSynthesis.speak(msg);
+
+const databaseURL =
+    "https://test-5b6ed-default-rtdb.firebaseio.com";
+
+
+let lastEvent = "";
+
+
+// =====================================================
+// VOICE
+// =====================================================
+
+function speak(text) {
+
+    if (!("speechSynthesis" in window)) {
+
+        console.log(
+            "Speech synthesis not supported."
+        );
+
+        return;
     }
 
-    function monitorEvents() {
-        fetch(`${databaseURL}/ROBOT_EVENT.json`)
-        .then(res => res.json())
-        .then(event => {
-            if (event && event !== lastEvent) {
-                lastEvent = event;
-                const displayText = document.getElementById('displayText');
-                const face = document.getElementById('face');
 
-                if (event === "OBSTACLE_DETECTED") {
-                    displayText.innerText = "Obstacle detected! Please clear the path.";
-                    face.innerText = "⚠️";
-                    speak("Excuse me, please clear the path so I can pass.");
-                } 
-                else if (event === "ARRIVED_AT_TABLE") {
-                    displayText.innerText = "Please enjoy your food!";
-                    face.innerText = "😋";
-                    speak("Hello! Your food is here. Please take your food tray from the robot.");
-                } 
-                else if (event === "ORDER_TAKEN") {
-                    displayText.innerText = "Thank you! Enjoy your meal.";
-                    face.innerText = "😄";
-                    speak("Thank you very much. Enjoy your meal!");
-                } 
-                else if (event === "ARRIVED_KITCHEN") {
-                    displayText.innerText = "Robot Ready";
-                    face.innerText = "🤖";
-                }
-            }
-        });
-    }
+    window.speechSynthesis.cancel();
 
-    setInterval(monitorEvents, 1000);
+
+    const message =
+        new SpeechSynthesisUtterance(text);
+
+
+    message.rate = 0.9;
+
+    message.pitch = 1.0;
+
+    message.volume = 1.0;
+
+
+    window.speechSynthesis.speak(
+        message
+    );
+}
+
+
+// =====================================================
+// UPDATE DISPLAY
+// =====================================================
+
+function updateDisplay(
+    text,
+    face,
+    background
+) {
+
+    document.getElementById(
+        "displayText"
+    ).innerText = text;
+
+
+    document.getElementById(
+        "face"
+    ).innerText = face;
+
+
+    document.body.style.background =
+        background;
+}
+
+
+// =====================================================
+// MONITOR EVENTS
+// =====================================================
+
+function monitorEvents() {
+
+    fetch(
+        `${databaseURL}/ROBOT_EVENT.json`
+    )
+
+    .then(res => res.json())
+
+    .then(event => {
+
+        if (!event) {
+            return;
+        }
+
+
+        if (event === lastEvent) {
+            return;
+        }
+
+
+        lastEvent = event;
+
+
+        // =============================================
+        // OBSTACLE
+        // =============================================
+
+        if (
+            event ===
+            "OBSTACLE_DETECTED"
+        ) {
+
+            updateDisplay(
+
+                "Obstacle detected! Please clear the path.",
+
+                "⚠️",
+
+                "#d63031"
+
+            );
+
+
+            speak(
+                "Excuse me. Please clear the path so I can pass."
+            );
+        }
+
+
+        // =============================================
+        // OBSTACLE TIMEOUT
+        // =============================================
+
+        else if (
+            event ===
+            "OBSTACLE_TIMEOUT"
+        ) {
+
+            updateDisplay(
+
+                "Please remove the obstacle from my path.",
+
+                "🚨",
+
+                "#c0392b"
+
+            );
+
+
+            speak(
+                "Please remove the obstacle from my path. I cannot continue."
+            );
+        }
+
+
+        // =============================================
+        // ARRIVED TABLE
+        // =============================================
+
+        else if (
+            event ===
+            "ARRIVED_AT_TABLE"
+        ) {
+
+            updateDisplay(
+
+                "Your food has arrived! Please take your order.",
+
+                "😋",
+
+                "#00b894"
+
+            );
+
+
+            speak(
+                "Hello. Your food is here. Please take your food tray from the robot."
+            );
+        }
+
+
+        // =============================================
+        // ORDER TAKEN
+        // =============================================
+
+        else if (
+            event ===
+            "ORDER_TAKEN"
+        ) {
+
+            updateDisplay(
+
+                "Thank you! Enjoy your meal.",
+
+                "😄",
+
+                "#00b894"
+
+            );
+
+
+            speak(
+                "Thank you very much. Enjoy your meal!"
+            );
+        }
+
+
+        // =============================================
+        // ARRIVED KITCHEN
+        // =============================================
+
+        else if (
+            event ===
+            "ARRIVED_KITCHEN"
+        ) {
+
+            updateDisplay(
+
+                "Robot Ready",
+
+                "🤖",
+
+                "#0984e3"
+
+            );
+
+
+            document.getElementById(
+                "status"
+            ).innerText =
+                "Waiting for the next order.";
+        }
+
+
+        // =============================================
+        // START MOVING
+        // =============================================
+
+        else if (
+            event ===
+            "START_MOVING"
+        ) {
+
+            updateDisplay(
+
+                "On the way to your table...",
+
+                "🚗",
+
+                "#0984e3"
+
+            );
+
+
+            document.getElementById(
+                "status"
+            ).innerText =
+                "Following the navigation line.";
+        }
+
+    })
+
+    .catch(error => {
+
+        console.error(
+            "Firebase event error:",
+            error
+        );
+
+    });
+}
+
+
+// =====================================================
+// MONITOR STATUS
+// =====================================================
+
+function monitorStatus() {
+
+    fetch(
+        `${databaseURL}/ROBOT_STATUS.json`
+    )
+
+    .then(res => res.json())
+
+    .then(status => {
+
+        if (status) {
+
+            document.getElementById(
+                "status"
+            ).innerText =
+                status;
+        }
+
+    })
+
+    .catch(error => {
+
+        console.error(
+            "Status error:",
+            error
+        );
+
+    });
+}
+
+
+// =====================================================
+// START
+// =====================================================
+
+monitorEvents();
+
+monitorStatus();
+
+
+setInterval(
+    monitorEvents,
+    500
+);
+
+
+setInterval(
+    monitorStatus,
+    1000
+);
+
 </script>
 
+
 </body>
+
 </html>
