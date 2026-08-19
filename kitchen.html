@@ -13,40 +13,15 @@
             color: white;
             text-align: center;
             padding: 20px;
-            margin: 0;
         }
 
         .card {
             background: #1e1e1e;
             padding: 25px;
-            border-radius: 15px;
+            border-radius: 12px;
             display: inline-block;
             width: 380px;
-            max-width: 90%;
-            margin: 10px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.4);
-        }
-
-        h1, h2, h3 {
-            margin-top: 10px;
-        }
-
-        .weightBox {
-            background: #2d3436;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 15px 0;
-        }
-
-        #weightValue {
-            font-size: 30px;
-            font-weight: bold;
-            color: #55efc4;
-        }
-
-        #plateStatus {
-            font-size: 17px;
-            margin-top: 5px;
+            max-width: 95%;
         }
 
         button {
@@ -59,30 +34,31 @@
             cursor: pointer;
             margin: 7px;
             width: 85%;
-            transition: 0.2s;
         }
 
-        button:hover:not(:disabled) {
+        button:hover {
             background: #008f72;
-            transform: scale(1.02);
         }
 
         button:disabled {
-            background: #636e72;
-            color: #b2bec3;
+            background: #555;
             cursor: not-allowed;
+        }
+
+        #weightValue {
+            font-size: 30px;
+            font-weight: bold;
+            color: #55efc4;
+        }
+
+        #weightStatus {
+            margin: 10px;
+            font-weight: bold;
         }
 
         #statusBox {
             font-size: 18px;
             color: #74b9ff;
-            margin-top: 10px;
-            font-weight: bold;
-        }
-
-        #tableBox {
-            font-size: 18px;
-            color: #ffeaa7;
             margin-top: 10px;
             font-weight: bold;
         }
@@ -94,18 +70,6 @@
             margin-top: 15px;
             font-weight: bold;
         }
-
-        .ready {
-            color: #55efc4;
-        }
-
-        .notReady {
-            color: #ff7675;
-        }
-
-        .info {
-            color: #74b9ff;
-        }
     </style>
 </head>
 
@@ -115,32 +79,32 @@
 
     <h2>🍽️ Kitchen Control Panel</h2>
 
-    <div class="weightBox">
+    <h3>Tray Weight</h3>
 
-        <h3>Tray Weight</h3>
+    <div id="weightValue">
+        Loading...
+    </div>
 
-        <div id="weightValue">
-            0.0 g
-        </div>
-
-        <div id="plateStatus" class="notReady">
-            Waiting for food...
-        </div>
-
+    <div id="weightStatus">
+        Checking...
     </div>
 
 
     <h3>Select Table</h3>
 
-    <button id="table1" onclick="sendOrder('Table 1')" disabled>
+    <!-- IMPORTANT:
+         Buttons are NOT disabled.
+    -->
+
+    <button onclick="sendOrder('Table 1')">
         Send to Table 1
     </button>
 
-    <button id="table2" onclick="sendOrder('Table 2')" >
+    <button onclick="sendOrder('Table 2')">
         Send to Table 2
     </button>
 
-    <button id="table3" onclick="sendOrder('Table 3')" >
+    <button onclick="sendOrder('Table 3')">
         Send to Table 3
     </button>
 
@@ -151,9 +115,6 @@
         Loading...
     </div>
 
-    <div id="tableBox">
-        Target: None
-    </div>
 
     <div id="alertBox"></div>
 
@@ -166,252 +127,330 @@ const databaseURL =
     "https://test-5b6ed-default-rtdb.firebaseio.com";
 
 
-const MINIMUM_WEIGHT = 50;
-
-let currentWeight = 0;
-let robotStatus = "Unknown";
-let selectedTable = "None";
-
-
 // =====================================================
 // SEND ORDER
 // =====================================================
 
-function sendOrder(table) {
+async function sendOrder(table) {
 
-    if (currentWeight < MINIMUM_WEIGHT) {
+    console.log("Selected table:", table);
 
-        showAlert(
-            "Cannot send robot. Food tray must contain at least 50 g.",
-            "#d63031"
+
+    // -------------------------------------------------
+    // GET CURRENT WEIGHT
+    // -------------------------------------------------
+
+    try {
+
+        const response =
+            await fetch(
+                `${databaseURL}/ROBOT_WEIGHT.json`
+            );
+
+
+        const weight =
+            await response.json();
+
+
+        console.log(
+            "Current weight:",
+            weight
         );
 
-        return;
-    }
 
+        // -------------------------------------------------
+        // CHECK WEIGHT
+        // -------------------------------------------------
 
-    const command = "START:" + table;
+        if (
+            weight === null ||
+            Number(weight) < 50
+        ) {
 
+            showAlert(
+                "⚠️ Food tray must contain at least 50 g.",
+                "#d63031"
+            );
 
-    fetch(`${databaseURL}/COMMAND.json`, {
-
-        method: "PUT",
-
-        headers: {
-            "Content-Type": "application/json"
-        },
-
-        body: JSON.stringify(command)
-
-    })
-
-    .then(response => {
-
-        if (!response.ok) {
-            throw new Error("Firebase command failed");
+            return;
         }
 
-        selectedTable = table;
 
-        document.getElementById("tableBox").innerText =
-            "Target: " + table;
+        // -------------------------------------------------
+        // SEND COMMAND
+        // -------------------------------------------------
+
+        const command =
+            `START:${table}`;
+
+
+        console.log(
+            "Sending command:",
+            command
+        );
+
+
+        const commandResponse =
+            await fetch(
+                `${databaseURL}/COMMAND.json`,
+                {
+                    method: "PUT",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify(command)
+                }
+            );
+
+
+        if (!commandResponse.ok) {
+
+            throw new Error(
+                "Failed to send command"
+            );
+        }
+
+
+        // -------------------------------------------------
+        // SUCCESS
+        // -------------------------------------------------
 
         showAlert(
-            "Robot dispatched to " + table,
+            `✅ Robot sent to ${table}`,
             "#00b894"
         );
 
-    })
 
-    .catch(error => {
+        document.getElementById(
+            "statusBox"
+        ).innerText =
+            `Sending robot to ${table}`;
 
-        console.error(error);
-
-        showAlert(
-            "Failed to send command to robot.",
-            "#d63031"
-        );
-
-    });
-}
-
-
-// =====================================================
-// UPDATE BUTTONS
-// =====================================================
-
-function updateButtons() {
-
-    const ready =
-        currentWeight >= MINIMUM_WEIGHT &&
-        (
-            robotStatus === "Idle in Kitchen" ||
-            robotStatus === "NodeMCU Connected" ||
-            robotStatus === "Ready"
-        );
-
-
-    document.getElementById("table1").disabled = !ready;
-    document.getElementById("table2").disabled = !ready;
-    document.getElementById("table3").disabled = !ready;
-
-
-    const plateStatus =
-        document.getElementById("plateStatus");
-
-
-    if (currentWeight >= MINIMUM_WEIGHT) {
-
-        plateStatus.innerText =
-            "✓ Food detected - Robot can be dispatched";
-
-        plateStatus.className = "ready";
 
     }
 
-    else {
-
-        plateStatus.innerText =
-            "Waiting for at least 50 g of food";
-
-        plateStatus.className = "notReady";
-    }
-}
-
-
-// =====================================================
-// READ WEIGHT
-// =====================================================
-
-function readWeight() {
-
-    fetch(`${databaseURL}/ROBOT_WEIGHT.json`)
-
-    .then(res => res.json())
-
-    .then(weight => {
-
-        if (weight !== null) {
-
-            currentWeight =
-                parseFloat(weight) || 0;
-
-            document.getElementById("weightValue").innerText =
-                currentWeight.toFixed(1) + " g";
-        }
-
-        updateButtons();
-
-    })
-
-    .catch(error => {
+    catch (error) {
 
         console.error(
-            "Weight read error:",
+            "ERROR:",
             error
         );
 
-    });
+
+        showAlert(
+            "❌ Error sending command. Check Firebase connection.",
+            "#d63031"
+        );
+    }
 }
 
 
 // =====================================================
-// READ ROBOT STATUS
+// GET WEIGHT
 // =====================================================
 
-function readStatus() {
+async function updateWeight() {
 
-    fetch(`${databaseURL}/ROBOT_STATUS.json`)
+    try {
 
-    .then(res => res.json())
+        const response =
+            await fetch(
+                `${databaseURL}/ROBOT_WEIGHT.json`
+            );
 
-    .then(status => {
 
-        if (status !== null) {
+        const weight =
+            await response.json();
 
-            robotStatus = status;
 
-            document.getElementById("statusBox").innerText =
+        const value =
+            Number(weight || 0);
+
+
+        document.getElementById(
+            "weightValue"
+        ).innerText =
+            value.toFixed(1) + " g";
+
+
+        if (value >= 50) {
+
+            document.getElementById(
+                "weightStatus"
+            ).innerText =
+                "✅ Food detected - Ready";
+
+            document.getElementById(
+                "weightStatus"
+            ).style.color =
+                "#55efc4";
+
+        }
+
+        else {
+
+            document.getElementById(
+                "weightStatus"
+            ).innerText =
+                "⚠️ Less than 50 g";
+
+            document.getElementById(
+                "weightStatus"
+            ).style.color =
+                "#ff7675";
+        }
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Weight error:",
+            error
+        );
+
+
+        document.getElementById(
+            "weightValue"
+        ).innerText =
+            "Connection Error";
+    }
+}
+
+
+// =====================================================
+// GET ROBOT STATUS
+// =====================================================
+
+async function updateStatus() {
+
+    try {
+
+        const response =
+            await fetch(
+                `${databaseURL}/ROBOT_STATUS.json`
+            );
+
+
+        const status =
+            await response.json();
+
+
+        if (status) {
+
+            document.getElementById(
+                "statusBox"
+            ).innerText =
                 status;
         }
 
-        updateButtons();
+    }
 
-    })
-
-    .catch(error => {
+    catch (error) {
 
         console.error(
-            "Status read error:",
+            "Status error:",
             error
         );
-
-    });
+    }
 }
 
 
 // =====================================================
-// READ EVENT
+// GET ROBOT EVENT
 // =====================================================
 
-function readEvent() {
+async function updateEvent() {
 
-    fetch(`${databaseURL}/ROBOT_EVENT.json`)
+    try {
 
-    .then(res => res.json())
+        const response =
+            await fetch(
+                `${databaseURL}/ROBOT_EVENT.json`
+            );
 
-    .then(event => {
+
+        const event =
+            await response.json();
+
 
         if (!event) {
             return;
         }
 
 
-        if (event === "OBSTACLE_TIMEOUT") {
+        if (
+            event ===
+            "OBSTACLE_DETECTED"
+        ) {
 
             showAlert(
-                "⚠️ WARNING: Robot has been blocked by an obstacle for more than 20 seconds!",
+                "⚠️ Obstacle detected!",
+                "#e17055"
+            );
+        }
+
+
+        else if (
+            event ===
+            "OBSTACLE_TIMEOUT"
+        ) {
+
+            showAlert(
+                "🚨 Obstacle blocked robot for more than 20 seconds!",
                 "#d63031"
             );
-
         }
 
-        else if (event === "ORDER_TAKEN") {
+
+        else if (
+            event ===
+            "ARRIVED_AT_TABLE"
+        ) {
 
             showAlert(
-                "✓ SUCCESS: Customer has taken the food tray.",
-                "#00b894"
-            );
-
-        }
-
-        else if (event === "ARRIVED_AT_TABLE") {
-
-            showAlert(
-                "✓ Robot arrived at " + selectedTable,
+                "✅ Robot arrived at table.",
                 "#0984e3"
             );
-
         }
 
-        else if (event === "ARRIVED_KITCHEN") {
+
+        else if (
+            event ===
+            "ORDER_TAKEN"
+        ) {
 
             showAlert(
-                "✓ Robot returned to kitchen.",
+                "✅ Customer took the food. Robot returning to kitchen.",
                 "#00b894"
             );
         }
 
-    })
 
-    .catch(error => {
+        else if (
+            event ===
+            "ARRIVED_KITCHEN"
+        ) {
+
+            showAlert(
+                "🏠 Robot arrived at kitchen.",
+                "#6c5ce7"
+            );
+        }
+
+    }
+
+    catch (error) {
 
         console.error(
-            "Event read error:",
+            "Event error:",
             error
         );
-
-    });
+    }
 }
 
 
@@ -419,16 +458,24 @@ function readEvent() {
 // ALERT
 // =====================================================
 
-function showAlert(message, background) {
+function showAlert(
+    message,
+    background
+) {
 
     const alertBox =
-        document.getElementById("alertBox");
+        document.getElementById(
+            "alertBox"
+        );
 
 
-    alertBox.innerText = message;
+    alertBox.innerText =
+        message;
+
 
     alertBox.style.background =
         background;
+
 
     alertBox.style.display =
         "block";
@@ -436,27 +483,28 @@ function showAlert(message, background) {
 
 
 // =====================================================
-// UPDATE EVERYTHING
-// =====================================================
-
-function checkRobotData() {
-
-    readWeight();
-
-    readStatus();
-
-    readEvent();
-}
-
-
-// =====================================================
 // START
 // =====================================================
 
-checkRobotData();
+updateWeight();
+
+updateStatus();
+
+updateEvent();
+
 
 setInterval(
-    checkRobotData,
+    updateWeight,
+    1000
+);
+
+setInterval(
+    updateStatus,
+    1000
+);
+
+setInterval(
+    updateEvent,
     1000
 );
 
