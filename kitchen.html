@@ -2,67 +2,464 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Kitchen Crew Dashboard</title>
+
     <style>
-        body { font-family: Arial, sans-serif; background: #121212; color: white; text-align: center; padding: 20px; }
-        .card { background: #1e1e1e; padding: 20px; border-radius: 12px; display: inline-block; width: 350px; margin: 10px; }
-        button { background: #00b894; color: white; padding: 12px 20px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin: 5px; width: 80%; }
-        button:hover { background: #008f72; }
-        #alertBox { background: #ff7675; color: white; padding: 15px; border-radius: 8px; display: none; margin-top: 15px; font-weight: bold; }
-        #statusBox { font-size: 18px; color: #74b9ff; margin-top: 10px; font-weight: bold; }
+        body {
+            font-family: Arial, sans-serif;
+            background: #121212;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .card {
+            background: #1e1e1e;
+            padding: 25px;
+            border-radius: 15px;
+            display: inline-block;
+            width: 380px;
+            max-width: 90%;
+            margin: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+        }
+
+        h1, h2, h3 {
+            margin-top: 10px;
+        }
+
+        .weightBox {
+            background: #2d3436;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+
+        #weightValue {
+            font-size: 30px;
+            font-weight: bold;
+            color: #55efc4;
+        }
+
+        #plateStatus {
+            font-size: 17px;
+            margin-top: 5px;
+        }
+
+        button {
+            background: #00b894;
+            color: white;
+            padding: 14px 20px;
+            border: none;
+            border-radius: 7px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 7px;
+            width: 85%;
+            transition: 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            background: #008f72;
+            transform: scale(1.02);
+        }
+
+        button:disabled {
+            background: #636e72;
+            color: #b2bec3;
+            cursor: not-allowed;
+        }
+
+        #statusBox {
+            font-size: 18px;
+            color: #74b9ff;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        #tableBox {
+            font-size: 18px;
+            color: #ffeaa7;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        #alertBox {
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+
+        .ready {
+            color: #55efc4;
+        }
+
+        .notReady {
+            color: #ff7675;
+        }
+
+        .info {
+            color: #74b9ff;
+        }
     </style>
 </head>
+
 <body>
 
 <div class="card">
-    <h2>Kitchen Control Panel</h2>
-    <p>Select Table to Dispatch Robot:</p>
-    <button onclick="sendOrder('Table 1')">Send to Table 1</button>
-    <button onclick="sendOrder('Table 2')">Send to Table 2</button>
-    <button onclick="sendOrder('Table 3')">Send to Table 3</button>
 
-    <h3>Robot Status:</h3>
-    <div id="statusBox">Loading...</div>
+    <h2>🍽️ Kitchen Control Panel</h2>
+
+    <div class="weightBox">
+
+        <h3>Tray Weight</h3>
+
+        <div id="weightValue">
+            0.0 g
+        </div>
+
+        <div id="plateStatus" class="notReady">
+            Waiting for food...
+        </div>
+
+    </div>
+
+
+    <h3>Select Table</h3>
+
+    <button id="table1" onclick="sendOrder('Table 1')" disabled>
+        Send to Table 1
+    </button>
+
+    <button id="table2" onclick="sendOrder('Table 2')" disabled>
+        Send to Table 2
+    </button>
+
+    <button id="table3" onclick="sendOrder('Table 3')" disabled>
+        Send to Table 3
+    </button>
+
+
+    <h3>Robot Status</h3>
+
+    <div id="statusBox">
+        Loading...
+    </div>
+
+    <div id="tableBox">
+        Target: None
+    </div>
+
     <div id="alertBox"></div>
+
 </div>
 
+
 <script>
-    const databaseURL = "https://test-5b6ed-default-rtdb.firebaseio.com/";
 
-    function sendOrder(table) {
-        fetch(`${databaseURL}/COMMAND.json`, {
-            method: 'PUT',
-            body: JSON.stringify(`START:${table}`)
-        });
-        document.getElementById('alertBox').style.display = "none";
+const databaseURL =
+    "https://test-5b6ed-default-rtdb.firebaseio.com";
+
+
+const MINIMUM_WEIGHT = 50;
+
+let currentWeight = 0;
+let robotStatus = "Unknown";
+let selectedTable = "None";
+
+
+// =====================================================
+// SEND ORDER
+// =====================================================
+
+function sendOrder(table) {
+
+    if (currentWeight < MINIMUM_WEIGHT) {
+
+        showAlert(
+            "Cannot send robot. Food tray must contain at least 50 g.",
+            "#d63031"
+        );
+
+        return;
     }
 
-    function checkRobotData() {
-        // Fetch Status
-        fetch(`${databaseURL}/ROBOT_STATUS.json`)
-        .then(res => res.json())
-        .then(status => {
-            if (status) document.getElementById('statusBox').innerText = status;
-        });
 
-        // Fetch Events / Notifications
-        fetch(`${databaseURL}/ROBOT_EVENT.json`)
-        .then(res => res.json())
-        .then(event => {
-            const alertBox = document.getElementById('alertBox');
-            if (event === "OBSTACLE_TIMEOUT") {
-                alertBox.innerText = "WARNING: Obstacle blocked robot path for > 30s!";
-                alertBox.style.background = "#d63031";
-                alertBox.style.display = "block";
-            } else if (event === "ORDER_TAKEN") {
-                alertBox.innerText = "SUCCESS: Food Tray picked up by customer!";
-                alertBox.style.background = "#00b894";
-                alertBox.style.display = "block";
-            }
-        });
+    const command = "START:" + table;
+
+
+    fetch(`${databaseURL}/COMMAND.json`, {
+
+        method: "PUT",
+
+        headers: {
+            "Content-Type": "application/json"
+        },
+
+        body: JSON.stringify(command)
+
+    })
+
+    .then(response => {
+
+        if (!response.ok) {
+            throw new Error("Firebase command failed");
+        }
+
+        selectedTable = table;
+
+        document.getElementById("tableBox").innerText =
+            "Target: " + table;
+
+        showAlert(
+            "Robot dispatched to " + table,
+            "#00b894"
+        );
+
+    })
+
+    .catch(error => {
+
+        console.error(error);
+
+        showAlert(
+            "Failed to send command to robot.",
+            "#d63031"
+        );
+
+    });
+}
+
+
+// =====================================================
+// UPDATE BUTTONS
+// =====================================================
+
+function updateButtons() {
+
+    const ready =
+        currentWeight >= MINIMUM_WEIGHT &&
+        (
+            robotStatus === "Idle in Kitchen" ||
+            robotStatus === "NodeMCU Connected" ||
+            robotStatus === "Ready"
+        );
+
+
+    document.getElementById("table1").disabled = !ready;
+    document.getElementById("table2").disabled = !ready;
+    document.getElementById("table3").disabled = !ready;
+
+
+    const plateStatus =
+        document.getElementById("plateStatus");
+
+
+    if (currentWeight >= MINIMUM_WEIGHT) {
+
+        plateStatus.innerText =
+            "✓ Food detected - Robot can be dispatched";
+
+        plateStatus.className = "ready";
+
     }
 
-    setInterval(checkRobotData, 1000);
+    else {
+
+        plateStatus.innerText =
+            "Waiting for at least 50 g of food";
+
+        plateStatus.className = "notReady";
+    }
+}
+
+
+// =====================================================
+// READ WEIGHT
+// =====================================================
+
+function readWeight() {
+
+    fetch(`${databaseURL}/ROBOT_WEIGHT.json`)
+
+    .then(res => res.json())
+
+    .then(weight => {
+
+        if (weight !== null) {
+
+            currentWeight =
+                parseFloat(weight) || 0;
+
+            document.getElementById("weightValue").innerText =
+                currentWeight.toFixed(1) + " g";
+        }
+
+        updateButtons();
+
+    })
+
+    .catch(error => {
+
+        console.error(
+            "Weight read error:",
+            error
+        );
+
+    });
+}
+
+
+// =====================================================
+// READ ROBOT STATUS
+// =====================================================
+
+function readStatus() {
+
+    fetch(`${databaseURL}/ROBOT_STATUS.json`)
+
+    .then(res => res.json())
+
+    .then(status => {
+
+        if (status !== null) {
+
+            robotStatus = status;
+
+            document.getElementById("statusBox").innerText =
+                status;
+        }
+
+        updateButtons();
+
+    })
+
+    .catch(error => {
+
+        console.error(
+            "Status read error:",
+            error
+        );
+
+    });
+}
+
+
+// =====================================================
+// READ EVENT
+// =====================================================
+
+function readEvent() {
+
+    fetch(`${databaseURL}/ROBOT_EVENT.json`)
+
+    .then(res => res.json())
+
+    .then(event => {
+
+        if (!event) {
+            return;
+        }
+
+
+        if (event === "OBSTACLE_TIMEOUT") {
+
+            showAlert(
+                "⚠️ WARNING: Robot has been blocked by an obstacle for more than 20 seconds!",
+                "#d63031"
+            );
+
+        }
+
+        else if (event === "ORDER_TAKEN") {
+
+            showAlert(
+                "✓ SUCCESS: Customer has taken the food tray.",
+                "#00b894"
+            );
+
+        }
+
+        else if (event === "ARRIVED_AT_TABLE") {
+
+            showAlert(
+                "✓ Robot arrived at " + selectedTable,
+                "#0984e3"
+            );
+
+        }
+
+        else if (event === "ARRIVED_KITCHEN") {
+
+            showAlert(
+                "✓ Robot returned to kitchen.",
+                "#00b894"
+            );
+        }
+
+    })
+
+    .catch(error => {
+
+        console.error(
+            "Event read error:",
+            error
+        );
+
+    });
+}
+
+
+// =====================================================
+// ALERT
+// =====================================================
+
+function showAlert(message, background) {
+
+    const alertBox =
+        document.getElementById("alertBox");
+
+
+    alertBox.innerText = message;
+
+    alertBox.style.background =
+        background;
+
+    alertBox.style.display =
+        "block";
+}
+
+
+// =====================================================
+// UPDATE EVERYTHING
+// =====================================================
+
+function checkRobotData() {
+
+    readWeight();
+
+    readStatus();
+
+    readEvent();
+}
+
+
+// =====================================================
+// START
+// =====================================================
+
+checkRobotData();
+
+setInterval(
+    checkRobotData,
+    1000
+);
+
 </script>
 
 </body>
