@@ -13,6 +13,7 @@
             color: white;
             text-align: center;
             padding: 20px;
+            margin: 0;
         }
 
         .card {
@@ -38,11 +39,6 @@
 
         button:hover {
             background: #008f72;
-        }
-
-        button:disabled {
-            background: #555;
-            cursor: not-allowed;
         }
 
         #weightValue {
@@ -86,15 +82,11 @@
     </div>
 
     <div id="weightStatus">
-        Checking...
+        Reading load cell...
     </div>
 
 
     <h3>Select Table</h3>
-
-    <!-- IMPORTANT:
-         Buttons are NOT disabled.
-    -->
 
     <button onclick="sendOrder('Table 1')">
         Send to Table 1
@@ -133,64 +125,16 @@ const databaseURL =
 
 async function sendOrder(table) {
 
-    console.log("Selected table:", table);
+    console.log("Selected:", table);
 
 
-    // -------------------------------------------------
-    // GET CURRENT WEIGHT
-    // -------------------------------------------------
+    const command =
+        `START:${table}`;
+
 
     try {
 
         const response =
-            await fetch(
-                `${databaseURL}/ROBOT_WEIGHT.json`
-            );
-
-
-        const weight =
-            await response.json();
-
-
-        console.log(
-            "Current weight:",
-            weight
-        );
-
-
-        // -------------------------------------------------
-        // CHECK WEIGHT
-        // -------------------------------------------------
-
-        if (
-            weight === null ||
-            Number(weight) < 50
-        ) {
-
-            showAlert(
-                "⚠️ Food tray must contain at least 50 g.",
-                "#d63031"
-            );
-
-            return;
-        }
-
-
-        // -------------------------------------------------
-        // SEND COMMAND
-        // -------------------------------------------------
-
-        const command =
-            `START:${table}`;
-
-
-        console.log(
-            "Sending command:",
-            command
-        );
-
-
-        const commandResponse =
             await fetch(
                 `${databaseURL}/COMMAND.json`,
                 {
@@ -207,42 +151,43 @@ async function sendOrder(table) {
             );
 
 
-        if (!commandResponse.ok) {
+        if (!response.ok) {
 
             throw new Error(
-                "Failed to send command"
+                "Firebase command failed"
             );
         }
 
 
-        // -------------------------------------------------
-        // SUCCESS
-        // -------------------------------------------------
-
-        showAlert(
-            `✅ Robot sent to ${table}`,
-            "#00b894"
+        console.log(
+            "Command sent:",
+            command
         );
 
 
         document.getElementById(
             "statusBox"
         ).innerText =
-            `Sending robot to ${table}`;
+            `Robot sent to ${table}`;
 
+
+        showAlert(
+            `✅ Robot dispatched to ${table}`,
+            "#00b894"
+        );
 
     }
 
     catch (error) {
 
         console.error(
-            "ERROR:",
+            "Command error:",
             error
         );
 
 
         showAlert(
-            "❌ Error sending command. Check Firebase connection.",
+            "❌ Failed to send command to Firebase.",
             "#d63031"
         );
     }
@@ -250,7 +195,7 @@ async function sendOrder(table) {
 
 
 // =====================================================
-// GET WEIGHT
+// UPDATE WEIGHT
 // =====================================================
 
 async function updateWeight() {
@@ -277,12 +222,12 @@ async function updateWeight() {
             value.toFixed(1) + " g";
 
 
-        if (value >= 50) {
+        if (value > 0) {
 
             document.getElementById(
                 "weightStatus"
             ).innerText =
-                "✅ Food detected - Ready";
+                "Food detected";
 
             document.getElementById(
                 "weightStatus"
@@ -296,7 +241,7 @@ async function updateWeight() {
             document.getElementById(
                 "weightStatus"
             ).innerText =
-                "⚠️ Less than 50 g";
+                "Tray empty";
 
             document.getElementById(
                 "weightStatus"
@@ -317,13 +262,13 @@ async function updateWeight() {
         document.getElementById(
             "weightValue"
         ).innerText =
-            "Connection Error";
+            "N/A";
     }
 }
 
 
 // =====================================================
-// GET ROBOT STATUS
+// UPDATE ROBOT STATUS
 // =====================================================
 
 async function updateStatus() {
@@ -361,7 +306,7 @@ async function updateStatus() {
 
 
 // =====================================================
-// GET ROBOT EVENT
+// UPDATE EVENTS
 // =====================================================
 
 async function updateEvent() {
@@ -413,7 +358,7 @@ async function updateEvent() {
         ) {
 
             showAlert(
-                "✅ Robot arrived at table.",
+                "✅ Robot arrived at the selected table.",
                 "#0984e3"
             );
         }
@@ -425,7 +370,7 @@ async function updateEvent() {
         ) {
 
             showAlert(
-                "✅ Customer took the food. Robot returning to kitchen.",
+                "✅ Customer took the food. Robot is returning.",
                 "#00b894"
             );
         }
@@ -437,7 +382,7 @@ async function updateEvent() {
         ) {
 
             showAlert(
-                "🏠 Robot arrived at kitchen.",
+                "🏠 Robot returned to the kitchen.",
                 "#6c5ce7"
             );
         }
