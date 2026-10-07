@@ -1,11 +1,18 @@
-import RobotControl from './RobotControl';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import CustomerMenu from './components/CustomerMenu';
+import AdminPanel from './components/AdminPanel';
 
-function App() {
+export default function App() {
   return (
-    <div>
-      <RobotControl />
-    </div>
+    <Router>
+      <Routes>
+        {/* Customer Menu View */}
+        <Route path="/" element={<CustomerMenu />} />
+
+        {/* Admin & Kitchen Panel View */}
+        <Route path="/admin" element={<AdminPanel />} />
+      </Routes>
+    </Router>
   );
 }
-
-export default App;
