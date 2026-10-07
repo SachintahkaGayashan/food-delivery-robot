@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowUp, ArrowDown, Square, Activity, ShieldAlert, ShieldCheck, Eye } from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getDatabase, ref, onValue } from 'firebase/database';
+
+// Direct Firebase Configuration
+const firebaseConfig = {
+  databaseURL: "https://test-5b6ed-default-rtdb.firebaseio.com"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
 export default function RobotControl() {
   const [currentStatus, setCurrentStatus] = useState('STOPPED');
@@ -7,24 +17,17 @@ export default function RobotControl() {
   const [qtrSensors, setQtrSensors] = useState([0, 0, 0, 0, 0, 0, 0, 0]);
   const [loading, setLoading] = useState(false);
 
-  // Poll QTR Sensor Data from Express Backend every 300ms
+  // Direct Firebase Realtime Listener for QTR Sensors
   useEffect(() => {
-    const fetchQTRData = async () => {
-      try {
-        const res = await fetch('http://localhost:5000/api/robot/qtr-sensors');
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data.sensors)) {
-            setQtrSensors(data.sensors);
-          }
-        }
-      } catch (err) {
-        console.error('QTR Fetch error:', err);
+    const qtrRef = ref(db, 'QTR_Sensors/s'); // Direct path to array "s"
+    const unsubscribe = onValue(qtrRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data && Array.isArray(data)) {
+        setQtrSensors(data);
       }
-    };
+    });
 
-    const interval = setInterval(fetchQTRData, 300);
-    return () => clearInterval(interval);
+    return () => unsubscribe();
   }, []);
 
   const sendCommand = async (command) => {
