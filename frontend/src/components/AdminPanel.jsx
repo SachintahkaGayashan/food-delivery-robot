@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Shield, LogOut, Utensils, ClipboardList, Plus, Trash2, Edit3, 
-  CheckCircle, AlertTriangle, Scale, Lock, Mail, RefreshCw, X, Save 
+  CheckCircle, AlertTriangle, Scale, Lock, Mail, RefreshCw, X, Save,
+  Battery, MapPin, Navigation, Wifi
 } from 'lucide-react';
-import { db, auth } from '../firebase'; // ඔබේ firebase.js file එක ඇති path එකට අනුව ( './firebase' හෝ '../firebase' )
+import { db, auth } from '../firebase';
 import { ref, onValue, push, set, update, remove } from 'firebase/database';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,13 +16,22 @@ export default function AdminPanel() {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  const [activeTab, setActiveTab] = useState('orders'); // 'orders' or 'menu'
+  const [activeTab, setActiveTab] = useState('orders'); // 'orders', 'menu', or 'robot'
   
   // Data states
   const [orders, setOrders] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
-  const [robotWeight, setRobotWeight] = useState(0); // Real-time weight from robot/sensor
+  const [robotWeight, setRobotWeight] = useState(0);
   const WEIGHT_LIMIT = 200; // Minimum weight threshold in grams to confirm delivery
+
+  // Robot Telemetry Detailed State
+  const [robotStatusData, setRobotStatusData] = useState({
+    battery: 0,
+    assignedTable: 'None',
+    location: 'Charging Dock',
+    roadblock: false,
+    status: 'IDLE'
+  });
 
   // Modal states for Food Add/Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -37,7 +47,7 @@ export default function AdminPanel() {
     return () => unsubscribe();
   }, [auth]);
 
-  // Fetch Orders, Menu, and Robot Weight in Real-time
+  // Fetch Orders, Menu, and Robot Telemetry in Real-time
   useEffect(() => {
     if (!user) return;
 
@@ -47,7 +57,7 @@ export default function AdminPanel() {
       const data = snapshot.val();
       if (data) {
         const list = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-        setOrders(list.reverse()); // Latest orders first
+        setOrders(list.reverse());
       } else {
         setOrders([]);
       }
@@ -65,17 +75,33 @@ export default function AdminPanel() {
       }
     });
 
-    // 3. Listen to Robot Weight Sensor Telemetry from Firebase
+    // 3. Listen to Robot Weight Sensor Telemetry
     const weightRef = ref(db, 'robotStatus/currentWeight');
     const unsubscribeWeight = onValue(weightRef, (snapshot) => {
       const weight = snapshot.val();
       setRobotWeight(weight !== null ? Number(weight) : 0);
     });
 
+    // 4. Listen to Full Robot Status Node (Battery, Location, Roadblock, etc.)
+    const robotStatusRef = ref(db, 'robotStatus');
+    const unsubscribeRobotStatus = onValue(robotStatusRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setRobotStatusData({
+          battery: data.battery || 0,
+          assignedTable: data.assignedTable || 'None',
+          location: data.location || 'Charging Dock',
+          roadblock: data.roadblock || false,
+          status: data.status || 'IDLE'
+        });
+      }
+    });
+
     return () => {
       unsubscribeOrders();
       unsubscribeMenu();
       unsubscribeWeight();
+      unsubscribeRobotStatus();
     };
   }, [user, db]);
 
@@ -100,7 +126,7 @@ export default function AdminPanel() {
     }
   };
 
-  // Confirm Order Action (Checks Weight Sensor First!)
+  // Confirm Order Action
   const handleConfirmOrder = async (orderId) => {
     if (robotWeight < WEIGHT_LIMIT) {
       alert(`⚠️ Cannot confirm order! Robot weight sensor reads ${robotWeight}g. Please place the food package onto the robot container first (Required min: ${WEIGHT_LIMIT}g).`);
@@ -116,7 +142,7 @@ export default function AdminPanel() {
     }
   };
 
-  // Delete Order Function (Added here)
+  // Delete Order Function
   const handleDeleteOrder = async (orderId) => {
     if (window.confirm('Are you sure you want to delete this order?')) {
       try {
@@ -138,11 +164,9 @@ export default function AdminPanel() {
 
     try {
       if (editingFood) {
-        // Update existing
         const foodRef = ref(db, `menu/${editingFood.id}`);
         await update(foodRef, foodForm);
       } else {
-        // Add new
         const menuRef = ref(db, 'menu');
         const newFoodRef = push(menuRef);
         await set(newFoodRef, foodForm);
@@ -291,10 +315,10 @@ export default function AdminPanel() {
       <main className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
         
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+        <div className="flex items-center gap-3 border-b border-slate-800 pb-4 overflow-x-auto">
           <button
             onClick={() => setActiveTab('orders')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === 'orders'
                 ? 'bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 shadow-lg shadow-emerald-500/20'
                 : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
@@ -304,8 +328,19 @@ export default function AdminPanel() {
           </button>
 
           <button
+            onClick={() => setActiveTab('robot')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+              activeTab === 'robot'
+                ? 'bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 shadow-lg shadow-emerald-500/20'
+                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Navigation className="w-4 h-4" /> Robot Status & Telemetry
+          </button>
+
+          <button
             onClick={() => setActiveTab('menu')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === 'menu'
                 ? 'bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 shadow-lg shadow-emerald-500/20'
                 : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
@@ -320,7 +355,7 @@ export default function AdminPanel() {
           <div className="space-y-6">
             <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-2xl flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-3 text-xs text-slate-300">
-                <AlertTriangle className="w-4 h-4 text-amber-400" />
+                <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
                 <span>Kitchen Rule: Orders can only be confirmed when the autonomous robot load cell sensor reads <strong>≥ {WEIGHT_LIMIT}g</strong>.</span>
               </div>
               <div className="sm:hidden flex items-center gap-2 px-3 py-1.5 rounded-xl border bg-slate-950 text-xs font-mono font-bold text-emerald-400 border-emerald-500/30">
@@ -382,7 +417,6 @@ export default function AdminPanel() {
                             </button>
                           )}
                           
-                          {/* Delete Order Button */}
                           <button
                             onClick={() => handleDeleteOrder(order.id)}
                             className="px-3 py-3 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
@@ -400,7 +434,80 @@ export default function AdminPanel() {
           </div>
         )}
 
-        {/* ================= TAB 2: MANAGE FOODS (CRUD) ================= */}
+        {/* ================= TAB 2: ROBOT STATUS & TELEMETRY ================= */}
+        {activeTab === 'robot' && (
+          <div className="space-y-6">
+            <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 space-y-6 shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div>
+                  <span className="text-emerald-400 text-xs font-bold uppercase tracking-wider bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">ESP8266 Telemetry</span>
+                  <h2 className="text-2xl font-black text-white tracking-tight mt-2">AGV Robot Live Diagnostics</h2>
+                </div>
+                <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs text-emerald-400 font-mono">
+                  <Wifi className="w-3.5 h-3.5 animate-pulse" /> Live Hardware Sync
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                {/* Battery Status */}
+                <div className="bg-slate-950 border border-slate-800 p-5 rounded-2xl space-y-2 shadow-md">
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span className="text-xs font-bold uppercase">Battery Level</span>
+                    <Battery className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-white font-mono">{robotStatusData.battery}%</span>
+                    <span className="text-[10px] text-emerald-400 font-bold">{robotStatusData.battery > 20 ? 'Optimal' : 'Low Power'}</span>
+                  </div>
+                </div>
+
+                {/* Current Assigned Table */}
+                <div className="bg-slate-950 border border-slate-800 p-5 rounded-2xl space-y-2 shadow-md">
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span className="text-xs font-bold uppercase">Assigned Table</span>
+                    <Navigation className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black text-white font-mono">{robotStatusData.assignedTable}</span>
+                    <span className="text-[10px] text-emerald-400 font-bold">{robotStatusData.status}</span>
+                  </div>
+                </div>
+
+                {/* Current Location */}
+                <div className="bg-slate-950 border border-slate-800 p-5 rounded-2xl space-y-2 shadow-md">
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span className="text-xs font-bold uppercase">Current Location</span>
+                    <MapPin className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xl font-bold text-white">{robotStatusData.location}</span>
+                  </div>
+                </div>
+
+                {/* Road Block / Obstacle Status */}
+                <div className="bg-slate-950 border border-slate-800 p-5 rounded-2xl space-y-2 shadow-md">
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span className="text-xs font-bold uppercase">Obstacle Status</span>
+                    {robotStatusData.roadblock ? (
+                      <AlertTriangle className="w-5 h-5 text-rose-500 animate-bounce" />
+                    ) : (
+                      <CheckCircle className="w-5 h-5 text-emerald-400" />
+                    )}
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-xl font-bold ${robotStatusData.roadblock ? 'text-rose-500' : 'text-emerald-400'}`}>
+                      {robotStatusData.roadblock ? 'Path Blocked!' : 'Path Clear'}
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ================= TAB 3: MANAGE FOODS (CRUD) ================= */}
         {activeTab === 'menu' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
